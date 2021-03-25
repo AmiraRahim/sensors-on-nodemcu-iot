@@ -1,0 +1,114 @@
+#include <ESP8266WiFi.h>;
+#include <WiFiClient.h>;
+#include <ThingSpeak.h>;
+#include <math.h>;
+#define max_lux 170
+
+const char* ssid = "Naaram";                              //WiFi name
+const char* password = "morgan123";                       //WiFI password
+int ldr = A0;
+int pir = D8;
+int led_ldr = D6;
+int led_pir = D5;
+int motionstate; 
+int i; 
+float lux;
+
+                                                          //to connect to Thingspeak channel
+WiFiClient client;
+unsigned long myChannelNumber = 1261003;                  //channel ID
+const char* myWriteAPIKey = "77X7EU9ST8H0X9Q8";           // the Write API Key
+
+void setup() {
+
+Serial.begin(115200);
+ThingSpeak.begin(client);
+pinMode(ldr, INPUT);
+pinMode(pir, INPUT);
+pinMode(led_pir, OUTPUT);
+pinMode(led_ldr, OUTPUT);
+delay(500);
+}
+
+void loop() {
+
+                                                          //initialize & read sensor
+int ldr = analogRead(A0);
+Serial.print("Brightness Sensor: ");
+Serial.println(ldr);
+Serial.println();
+delay(150);
+
+int pir = digitalRead(D8);
+Serial.print("Motion Sensor: ");
+Serial.println(pir);
+Serial.println();
+delay(150);
+
+                                                          //turning on LED for motion
+if(pir == HIGH){
+  for(int i=0;i<90;i++){                                  //arbitrary i number of times where motionstate is 'triggered'
+    motionstate = 1;
+    digitalWrite(led_pir, HIGH);                          //turn on LED
+    Serial.print("Motion State: ");
+    Serial.println(motionstate);
+    Serial.println();
+    delay(500);
+}
+}
+else{
+  motionstate = 0;
+  digitalWrite(led_pir, LOW);                               //turn off LED
+  Serial.print("Motion State: ");
+  Serial.println(motionstate);
+  Serial.println();
+  delay(500);
+}
+
+                                                            //turning on LED for LDR
+if (ldr < 600) {                                            //consider 600 as 'dark' condition
+  digitalWrite(led_ldr, HIGH);                              //turn on LED
+  delay(500);
+}
+else {
+  digitalWrite(led_ldr, LOW);                               //turn off LED
+  delay(500);
+}
+
+                                                            //maximum LDR case
+if (ldr == 1024){
+  Serial.print("Maximum LDR, lux limit: ");
+  Serial.print(max_lux);
+  Serial.println();
+  ThingSpeak.setField(3, (int)max_lux);
+  delay(500);
+}
+else {
+  Serial.print("Calculating illuminance... ");
+  Serial.println();
+  delay(500);
+}
+
+                                                              //calculate lux
+float volt_ldr = ldr * (3.3 / 1024);                          //voltage across LDR
+Serial.print("Voltage form of LDR: ");
+Serial.print(volt_ldr);
+Serial.println();
+
+float R_ldr = (33000 / volt_ldr) - 10000;                      //resistance across LDR
+Serial.print("Resistance form of LDR: ");
+Serial.print(R_ldr);
+Serial.println();
+
+float lux = (pow(R_ldr, -0.78)) * (pow(10, 3.934));            //lux formula
+Serial.print("Calculated Illuminance, Lux: ");
+Serial.print(lux);
+Serial.println();
+
+                                                               //update Thingspeak
+ThingSpeak.setField(1, (int)ldr);                              //field 1 for brightness
+ThingSpeak.setField(2, (int)motionstate);                      //field 2 for motion
+ThingSpeak.setField(3, (float)lux);                            //field 3 for lux value
+ThingSpeak.writeFields(myChannelNumber, myWriteAPIKey);
+delay(150);
+}
